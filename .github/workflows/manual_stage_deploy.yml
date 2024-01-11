@@ -1,0 +1,158 @@
+name: Manual STAGE deploy
+on:
+  workflow_call:
+    inputs:
+      update_simbioz:
+        required: true
+        type: boolean
+      base_update:
+        required: false
+        type: boolean
+      SERVER_ADDR:
+        required: true
+        type: string
+      SERVER_USER:
+        required: true
+        type: string
+      MAIN_PATH:
+        required: true
+        type: string
+      CUSTOM_PATH:
+        required: true
+        type: string
+      ODOO_SERVICE:
+        required: true
+        type: string
+      ODOO_USER:
+        required: true
+        type: string
+      ODOO_URI:
+        required: true
+        type: string
+      ODOO_DB:
+        required: true
+        type: string
+    secrets:
+      SSH_KEY:
+        required: true
+      ODOO_PASSWORD:
+        required: true
+jobs:
+  deploy:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Check variables
+        run: |
+          echo "=== CHECKING INPUTS ==="
+          if [[ -z "${{inputs.SERVER_ADDR}}" ]]; then
+            echo "SERVER_ADDR is not set"
+            exit 100
+          fi
+          if [[ -z "${{inputs.SERVER_USER}}" ]]; then
+            echo "SERVER_USER is not set"
+            exit 100
+          fi
+          if [[ -z "${{inputs.MAIN_PATH}}" ]]; then
+            echo "MAIN_PATH is not set"
+            exit 100
+          fi
+          if [[ -z "${{inputs.ODOO_SERVICE}}" ]]; then
+            echo "ODOO_SERVICE is not set"
+            exit 100
+          fi
+          if [[ -z "${{inputs.ODOO_USER}}" ]]; then
+            echo "ODOO_USER is not set"
+            exit 100
+          fi
+          if [[ -z "${{inputs.ODOO_URI}}" ]]; then
+            echo "ODOO_URI is not set"
+            exit 100
+          fi
+          if [[ -z "${{inputs.ODOO_DB}}" ]]; then
+            echo "ODOO_DB is not set"
+            exit 100
+          fi
+          echo "=== END CHECKING INPUTS ==="
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          repository: BorovlevAS/ci_cd_workflows
+          ref: 'main'
+          path: ci_cd_tools
+      - name: Install Python
+        if: ${{!inputs.base_update}}
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.8.10'
+      - name: Create SSH
+        run: |
+          install -m 600 -D /dev/null ~/.ssh/id_rsa
+          echo "${{secrets.SSH_KEY}}" > ~/.ssh/id_rsa
+          ssh-keyscan -H ${{inputs.SERVER_ADDR}} > ~/.ssh/known_hosts
+          ssh -T ${{inputs.SERVER_USER}}@${{inputs.SERVER_ADDR}} > /dev/null
+          echo "#!/bin/bash" > ~/update_script.sh
+      - name: Update from SIMBIOZ repo - prepare
+        if: ${{inputs.update_simbioz}}
+        run: |
+          cat <<EOF >> ~/update_script.sh
+          echo "=== UPDATING SIMBIOZ REPOs ==="
+          cd ${{inputs.MAIN_PATH}}
+          git submodule foreach --recursive git config --local --replace-all safe.directory '*'
+          git submodule foreach --recursive git checkout main
+          git submodule foreach --recursive 'git add . && git diff-index --quiet HEAD || (git stash && git stash drop)'
+          git submodule foreach --recursive git reset --hard
+          git submodule foreach --recursive git pull
+          sh odoo_set_icons.sh || true
+          EOF
+      - name: Update from BIKO repo - prepare
+        env:
+          PTH_STRING: ${{'$PTH'}}
+        run: |
+          cat <<EOF >> ~/update_script.sh
+          echo "=== UPDATING BIKO REPOs ==="
+          if [[ -n "${{inputs.CUSTOM_PATH}}" ]]; then
+            for PTH in {${{inputs.CUSTOM_PATH}}}
+            do
+              if [[ -d "$PTH_STRING" ]]; then
+                cd "$PTH_STRING"
+                echo "Current directory: " && pwd
+                git checkout stage
+                if [[ $? -eq 0 ]]; then
+                  git add . && git diff-index --quiet HEAD || (git stash && git stash drop)
+                  git reset --hard
+                  git pull
+                fi
+              else
+                echo "No folder $PTH_STRING"
+              fi
+            done
+          else
+            echo "NO CUSTOM FOLDERS SPECIFIED"
+          fi
+          EOF
+      - name: Soft update (only changes)
+        if: ${{!inputs.base_update}}
+        run: |
+          cat <<EOF >> ~/update_script.sh
+          echo "=== UPDATING ODOO ==="
+          sudo systemctl restart ${{inputs.ODOO_SERVICE}}
+          EOF
+          echo "=== START PRINT SCRIPT ==="
+          cat ~/update_script.sh
+          echo "=== END PRINT SCRIPT ==="
+          ssh -o TCPKeepAlive=yes -o ServerAliveCountMax=30 -o ServerAliveInterval=60 ${{inputs.SERVER_USER}}@${{inputs.SERVER_ADDR}} bash < ~/update_script.sh
+          python3 ci_cd_tools/scripts/odoo_update_addons.py "${{inputs.ODOO_USER}}" "${{secrets.ODOO_PASSWORD}}" "${{inputs.ODOO_URI}}" "${{inputs.ODOO_DB}}"
+      - name: Hard update (base module)
+        if: ${{inputs.base_update}}
+        run: |
+          cat <<EOF >> ~/update_script.sh
+          echo "=== UPDATING ODOO ==="
+          sudo systemctl stop ${{inputs.ODOO_SERVICE}}
+          cd ${{inputs.MAIN_PATH}}
+          ${{inputs.MAIN_PATH}}/venv/bin/python3 ${{inputs.MAIN_PATH}}/odoo-bin -c ${{inputs.MAIN_PATH}}/config/odoo-server.conf -d ${{inputs.ODOO_DB}} -u base --logfile= --log-level=error --stop-after-init
+          sudo systemctl start ${{inputs.ODOO_SERVICE}}
+          sudo systemctl status ${{inputs.ODOO_SERVICE}}
+          EOF
+          cat ~/update_script.sh
+          ssh -o TCPKeepAlive=yes -o ServerAliveCountMax=100 -o ServerAliveInterval=60 ${{inputs.SERVER_USER}}@${{inputs.SERVER_ADDR}} bash < ~/update_script.sh
