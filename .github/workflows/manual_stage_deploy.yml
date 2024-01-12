@@ -16,7 +16,7 @@ on:
 jobs:
     STAGE_DEPLOY:
         # uses: BorovlevAS/ci_cd_workflows/.github/workflows/manual_stage_deploy.yml@main
-        uses: qdnick/cicd2/blob/main/.github/workflows/manual_preprod_deploy.yml
+        uses: qdnick/cicd2/.github/workflows/manual_preprod_deploy.yml
         with:
             update_simbioz: ${{ inputs.update_simbioz }}
             base_update: ${{ inputs.base_update }}

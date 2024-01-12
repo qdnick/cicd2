@@ -15,4 +15,4 @@ on:
 jobs:
     pre-commit:
         # uses: BorovlevAS/ci_cd_workflows/.github/workflows/precommit.yml@main
-        uses: qdnick/cicd2/blob/main/.github/workflows/manual_preprod_deploy.yml
+        uses: qdnick/cicd2/.github/workflows/manual_preprod_deploy.yml@main
