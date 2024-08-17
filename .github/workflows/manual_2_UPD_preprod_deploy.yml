@@ -1,4 +1,4 @@
-name: Manual preprod deploy
+name: Manual 2 UPD preprod deploy_
 on:
     workflow_dispatch:
         inputs:
