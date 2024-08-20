@@ -16,7 +16,7 @@ on:
 jobs:
     PREPROD_DEPLOY:
         #uses: BorovlevAS/ci_cd_workflows/.github/workflows/manual_preprod_deploy.yml@main
-        uses: qdnick/ci_cd_workflows/.github/workflows/manual_upd_preprod_deploy.yml@main
+        uses: qdnick/ci_cd_workflows/.github/workflows/manual_upd_preprod_self_hosted.yml@main
         with:
             update_simbioz: ${{ inputs.update_simbioz }}
             base_update: ${{ inputs.base_update }}
