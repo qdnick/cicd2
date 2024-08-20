@@ -1,0 +1,34 @@
+name: Manual 2 UPD preprod deploy_
+on:
+    workflow_dispatch:
+        inputs:
+            update_simbioz:
+                description: "Update SIMBIOZ sources"
+                default: false
+                required: true
+                type: boolean
+            base_update:
+                description: "Full update (BASE module)"
+                default: false
+                required: false
+                type: boolean
+
+jobs:
+    PREPROD_DEPLOY:
+        #uses: BorovlevAS/ci_cd_workflows/.github/workflows/manual_preprod_deploy.yml@main
+        uses: qdnick/ci_cd_workflows/.github/workflows/manual_upd_preprod_deploy.yml@main
+        with:
+            update_simbioz: ${{ inputs.update_simbioz }}
+            base_update: ${{ inputs.base_update }}
+            SERVER_ADDR: ${{vars.PREPROD_SERV_ADDR}}
+            SERVER_USER: ${{vars.PREPROD_SERV_USER}}
+            SERVER_PORT: ${{vars.PREPROD_SERV_PORT}}
+            MAIN_PATH: ${{vars.PREPROD_MAIN_PATH}}
+            CUSTOM_PATH: ${{vars.PREPROD_CUSTOM_PATH}}
+            ODOO_SERVICE: ${{vars.PREPROD_ODOO_SERVICE}}
+            ODOO_USER: ${{vars.PREPROD_ODOO_USER}}
+            ODOO_URI: ${{vars.PREPROD_ODOO_ADDR}}
+            ODOO_DB: ${{vars.PREPROD_DB_NAME}}
+        secrets:
+            SSH_KEY: ${{secrets.PREPROD_SSH_KEY}}
+            ODOO_PASSWORD: ${{secrets.PREPROD_ODOO_ADMIN_PWD}}
